@@ -18,7 +18,7 @@ A flood monitoring and emergency response mobile app built with **Expo + React N
 ## 🚀 Setup
 
 ### Prerequisites
-- Node.js 18+
+- Node.js (Download Latest Version)
 - Expo CLI: `npm install -g expo-cli`
 - Expo Go app on your phone ([iOS](https://apps.apple.com/app/expo-go/id982107779) / [Android](https://play.google.com/store/apps/details?id=host.exp.exponent))
 
