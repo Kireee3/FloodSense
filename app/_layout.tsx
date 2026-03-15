@@ -2,6 +2,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { ThemeProvider, useTheme } from '../constants/ThemeContext';
 import { View } from 'react-native';
+import React from 'react';
 
 function AppContent() {
   const { darkMode } = useTheme();

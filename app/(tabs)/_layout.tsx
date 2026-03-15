@@ -2,6 +2,7 @@ import { Tabs } from 'expo-router';
 import { View, Text, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { Colors, Radius } from '../../constants/theme';
+import React from 'react';
 
 type TabIconProps = {
   name: React.ComponentProps<typeof Feather>['name'];
