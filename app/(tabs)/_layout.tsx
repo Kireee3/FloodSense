@@ -2,6 +2,7 @@ import { Tabs } from 'expo-router';
 import { View, Text, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { Colors, Radius } from '../../constants/theme';
+import { useTheme } from '../../constants/ThemeContext';
 import React from 'react';
 
 type TabIconProps = {
@@ -11,17 +12,24 @@ type TabIconProps = {
 };
 
 function TabIcon({ name, label, focused }: TabIconProps) {
+  const { darkMode } = useTheme();
+  const inactiveColor = darkMode ? '#888' : Colors.textGray;
+
   return (
     <View style={styles.tabItem}>
       <View style={focused ? styles.activeIconWrapper : styles.iconWrapper}>
         <Feather
           name={name}
           size={18}
-          color={focused ? Colors.textWhite : Colors.textGray}
+          color={focused ? Colors.textWhite : inactiveColor}
         />
       </View>
       <Text
-        style={[styles.tabLabel, focused && styles.tabLabelActive]}
+        style={[
+          styles.tabLabel,
+          { color: inactiveColor },
+          focused && styles.tabLabelActive,
+        ]}
         numberOfLines={1}
       >
         {label}
@@ -31,13 +39,25 @@ function TabIcon({ name, label, focused }: TabIconProps) {
 }
 
 export default function TabLayout() {
+  const { darkMode } = useTheme();
+
+  const tabBarBg = darkMode ? '#0d1f33' : Colors.bgWhite;
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarStyle: styles.tabBar,
+        tabBarStyle: [
+          styles.tabBar,
+          { backgroundColor: tabBarBg },
+        ],
         tabBarShowLabel: false,
         tabBarItemStyle: styles.tabBarItem,
+        tabBarIconStyle: {
+          width: '100%',
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
       }}
     >
       <Tabs.Screen
@@ -78,13 +98,14 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   tabBar: {
-    backgroundColor: Colors.bgWhite,
     borderTopWidth: 0,
     height: 70,
     borderRadius: Radius.xxl,
     marginHorizontal: 12,
     marginBottom: 16,
     position: 'absolute',
+    paddingTop: 6,
+    paddingBottom: 6,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.08,
@@ -95,23 +116,25 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 70,
     paddingVertical: 0,
-  },
-  tabItem: {
-    flex: 1,
+    paddingHorizontal: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 3,
+  },
+  tabItem: {
     width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   iconWrapper: {
     width: 36,
     height: 28,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 2,
   },
   activeIconWrapper: {
     width: 60,
-    height: 28,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.teal,
@@ -119,7 +142,6 @@ const styles = StyleSheet.create({
   },
   tabLabel: {
     fontSize: 10,
-    color: Colors.textGray,
     fontWeight: '500',
     textAlign: 'center',
     includeFontPadding: false,
