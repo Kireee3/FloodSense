@@ -35,7 +35,7 @@ export default function GuideScreen() {
   const fs = fontSize === 'small' ? 0.85 : fontSize === 'large' ? 1.2 : 1;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: bg }]} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: bg }]} edges={[]}>
       <AppHeader />
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
 

@@ -38,12 +38,12 @@ const MAP_LAYERS: MapLayer[] = [
     nativeSatellite: true,
   },
   {
-    key: 'terrain',
+   key: 'terrain',
     label: 'Terrain',
     icon: 'triangle',
     description: 'Elevation & contours',
-    tileUrl: 'https://tiles.stadiamaps.com/tiles/stamen_terrain/{z}/{x}/{y}.png',
-  },
+    tileUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
+},
   {
     key: 'cycle',
     label: 'Cycle',
@@ -161,7 +161,7 @@ export default function HomeScreen() {
   const currentLayer = MAP_LAYERS.find((layer) => layer.key === activeLayer)!;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: bg }]} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: bg }]} edges={[]}>
       <AppHeader />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
@@ -222,7 +222,7 @@ export default function HomeScreen() {
               activeOpacity={0.8}
             >
               <Feather name={currentLayer.icon} size={13} color={Colors.teal} />
-              <Text style={[styles.layerBtnText, { color: textPrimary, fontSize: Fonts.sizes.xs * fs }]}>
+              <Text style={[styles.layerBtnaText, { color: textPrimary, fontSize: Fonts.sizes.xs * fs }]}>
                 {currentLayer.label}
               </Text>
               <Feather name="chevron-down" size={12} color={textSecondary} />
@@ -412,7 +412,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 20 },
-  greetRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: Spacing.base, paddingVertical: Spacing.md, borderBottomWidth: 1 },
+  greetRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: Spacing.base, paddingVertical: Spacing.sm, borderBottomWidth: 1 },
   greetSub: { fontWeight: '600', letterSpacing: 1 },
   greetTitle: { fontWeight: '800', marginTop: 2 },
   warnBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.full, borderWidth: 1.5, borderColor: Colors.warning, backgroundColor: 'rgba(243,156,18,0.08)' },

@@ -16,7 +16,7 @@ function TabIcon({ name, label, focused }: TabIconProps) {
       <View style={focused ? styles.activeIconWrapper : styles.iconWrapper}>
         <Feather
           name={name}
-          size={18}
+          size={20}
           color={focused ? Colors.textWhite : Colors.textGray}
         />
       </View>
@@ -90,28 +90,37 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 12,
     elevation: 10,
+    paddingBottom: 0,     
+    paddingTop: 0,         
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
   },
   tabBarItem: {
     flex: 1,
     height: 70,
     paddingVertical: 0,
+    paddingBottom: 0,      
+    paddingTop: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   tabItem: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 3,
-    width: '100%',
+    marginTop: 35,
   },
   iconWrapper: {
-    width: 36,
-    height: 28,
+    width: 42,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
   },
   activeIconWrapper: {
-    width: 60,
-    height: 28,
+    width: 70,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.teal,
