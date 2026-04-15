@@ -7,38 +7,23 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/icon.png",
-      "backgroundColor": "#0D3B5E",
-      "resizeMode": "contain"
+      "backgroundColor": "#0D3B5E"
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.floodsense.app"
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#0D3B5E"
       },
       "package": "com.floodsense.app"
     },
-    "plugins": [
-      "expo-router"
-    ],
+    "plugins": ["expo-router"],
     "scheme": "floodsense",
     "experiments": {
       "typedRoutes": true
-    },
-    "extra": {
-      "router": {
-        "origin": false
-      },
-      "eas": {
-        "projectId": "af9d6367-2e70-4196-879b-cff920c60986"
-      }
     }
   }
 }
