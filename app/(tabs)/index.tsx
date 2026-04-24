@@ -222,7 +222,7 @@ export default function HomeScreen() {
               activeOpacity={0.8}
             >
               <Feather name={currentLayer.icon} size={13} color={Colors.teal} />
-              <Text style={[styles.layerBtnaText, { color: textPrimary, fontSize: Fonts.sizes.xs * fs }]}>
+              <Text style={[styles.layerBtnText, { color: textPrimary, fontSize: Fonts.sizes.xs * fs }]}>
                 {currentLayer.label}
               </Text>
               <Feather name="chevron-down" size={12} color={textSecondary} />
