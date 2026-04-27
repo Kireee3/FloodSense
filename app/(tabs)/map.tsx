@@ -1,4 +1,5 @@
-import React, { useState, useRef } from 'react';
+import * as Location from 'expo-location';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -80,9 +81,28 @@ const MAP_LAYERS: MapLayer[] = [
 // ---------------------------------------------------------------------------
 // Coordinates — Brgy 659, Manila
 // ---------------------------------------------------------------------------
-const YOUR_LOCATION  = { latitude: 14.5995, longitude: 120.9842 };
+const YOUR_LOCATION = { latitude: 14.5905, longitude: 120.9820 };
 const FLOOD_LOCATION = { latitude: 14.5965, longitude: 120.9820 };
 const SAFE_LOCATION  = { latitude: 14.6025, longitude: 120.9875 };
+
+const EVAC_AREAS = [
+  {
+    name: 'SM City Manila',
+    coordinate: { latitude: 14.589856887783418, longitude: 120.98314042065157 }, 
+  },
+  {
+    name: 'PNU Gymnasium',
+    coordinate: { latitude: 14.58836845294668, longitude: 120.98263528399174 },
+  },
+  {
+    name: 'YMCA of Manila',
+    coordinate: { latitude: 14.588845283492326, longitude: 120.98254227148138 }, 
+  },
+  {
+    name: 'Maceda Building',
+    coordinate: { latitude: 14.587614491989854, longitude: 120.9827890805987 }, 
+  },
+];
 
 const ROUTE_COORDS = [
   YOUR_LOCATION,
@@ -116,9 +136,27 @@ export default function MapScreen() {
   const [pickerVisible, setPickerVisible] = useState(false);
   const [isMapFullscreen, setIsMapFullscreen] = useState(false);
   const [mapRegion, setMapRegion] = useState(INITIAL_REGION);
+  const [userLocation, setUserLocation] = useState<any>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const currentLayer = MAP_LAYERS.find(l => l.key === activeLayer)!;
+  useEffect(() => {
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+
+      if (status !== 'granted') {
+        console.log('Location permission denied');
+        return;
+      }
+
+      const location = await Location.getCurrentPositionAsync({});
+
+      setUserLocation({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      });
+    })();
+  }, []);
 
   const openPicker = () => {
     setPickerVisible(true);
@@ -190,6 +228,29 @@ export default function MapScreen() {
           strokeWidth={2}
         />
 
+        {EVAC_AREAS.map((area) => (
+        <React.Fragment key={area.name}>
+          <Circle
+            center={area.coordinate}
+            radius={60}
+            strokeColor="rgba(255,165,0,0.9)"
+            fillColor="rgba(255,165,0,0.22)"
+            strokeWidth={2}
+          />
+
+          <Marker coordinate={area.coordinate} anchor={{ x: 0.5, y: 1 }}>
+            <View style={styles.markerWrap}>
+              <View style={styles.markerOrange}>
+                <Feather name="home" size={14} color="#fff" />
+              </View>
+              <View style={[styles.markerLabel, { backgroundColor: '#f39c12' }]}>
+                <Text style={styles.markerLabelText}>EVAC</Text>
+              </View>
+            </View>
+          </Marker>
+        </React.Fragment>
+        ))}
+
         {/* Evacuation route */}
         <Polyline
           coordinates={ROUTE_COORDS}
@@ -198,17 +259,18 @@ export default function MapScreen() {
           lineDashPattern={[10, 6]}
         />
 
-        {/* Your Location */}
-        <Marker coordinate={YOUR_LOCATION} anchor={{ x: 0.5, y: 1 }} tracksViewChanges={false}>
-          <View style={styles.markerWrap}>
-            <View style={styles.markerTeal}>
-              <Feather name="map-pin" size={16} color="#fff" />
+        {userLocation && (
+          <Marker coordinate={userLocation} anchor={{ x: 0.5, y: 1 }}>
+            <View style={styles.markerWrap}>
+              <View style={styles.markerTeal}>
+                <Feather name="map-pin" size={16} color="#fff" />
+              </View>
+              <View style={[styles.markerLabel, { backgroundColor: '#0d8b80' }]}>
+                <Text style={styles.markerLabelText}>YOU</Text>
+              </View>
             </View>
-            <View style={[styles.markerLabel, { backgroundColor: '#0d8b80' }]}>
-              <Text style={styles.markerLabelText}>YOU</Text>
-            </View>
-          </View>
-        </Marker>
+          </Marker>
+        )}
 
         {/* Flood Zone */}
         <Marker coordinate={FLOOD_LOCATION} anchor={{ x: 0.5, y: 1 }} tracksViewChanges={false}>
@@ -334,6 +396,7 @@ export default function MapScreen() {
               <LegendItem color={Colors.teal}  label="Your Location" textColor={textSecondary} fs={fs} />
               <LegendItem color={Colors.red}   label="Flood Zone"    textColor={textSecondary} fs={fs} />
               <LegendItem color={Colors.green} label="Safe Zone"     textColor={textSecondary} fs={fs} />
+              <LegendItem color="#f39c12" label="Evacuation Area" textColor={textSecondary} fs={fs} />
             </View>
           </View>
 
@@ -518,6 +581,7 @@ const styles = StyleSheet.create({
   markerTeal:   { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.teal,  alignItems: 'center', justifyContent: 'center', borderWidth: 2.5, borderColor: 'rgba(255,255,255,0.6)' },
   markerRed:    { width: 30, height: 30, borderRadius: 15, backgroundColor: Colors.red,   alignItems: 'center', justifyContent: 'center', borderWidth: 2,   borderColor: 'rgba(255,255,255,0.5)' },
   markerGreen:  { width: 30, height: 30, borderRadius: 15, backgroundColor: Colors.green, alignItems: 'center', justifyContent: 'center', borderWidth: 2,   borderColor: 'rgba(255,255,255,0.5)' },
+  markerOrange: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#f39c12', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'rgba(255,255,255,0.6)', },
   markerLabel:  { marginTop: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   markerLabelText: { fontSize: 8, color: '#fff', fontWeight: '800', letterSpacing: 0.5 },
 
