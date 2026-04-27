@@ -124,6 +124,7 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 23,
   },
   iconWrapper: {
     width: 36,
