@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react'; // Added useEffect
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Modal } from 'react-native';
 import MapView, { Marker, Polyline, Circle, UrlTile, PROVIDER_DEFAULT } from 'react-native-maps';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -8,6 +8,10 @@ import AppHeader from '../../components/AppHeader';
 import { Colors, Spacing, Radius, Fonts } from '../../constants/theme';
 import { floodData, alerts } from '../../constants/data';
 import { useTheme } from '../../constants/ThemeContext';
+
+// --- NEW IMPORTS FOR FIREBASE ---
+import { ref, onValue } from 'firebase/database';
+import { db } from '../../constants/firebase';
 
 type LayerKey = 'street' | 'satellite' | 'terrain' | 'cycle' | 'transport';
 
@@ -78,41 +82,34 @@ const INITIAL_REGION = {
   longitudeDelta: 0.010,
 };
 
-function WaterLevelWidget({ unitSystem }: { unitSystem: string }) {
-  const rawLevel = typeof floodData.waterLevel === 'number'
-    ? floodData.waterLevel
-    : parseFloat(floodData.waterLevel);
-  const displayLevel = unitSystem === 'imperial' ? (rawLevel * 3.281).toFixed(1) : String(floodData.waterLevel);
+function WaterLevelWidget({ unitSystem, level }: { unitSystem: string; level: number }) {
+  // Assuming the sensor sends raw centimeters (e.g., 151)
+  // Convert to meters (1.51) or feet (4.95)
+  const displayLevel = unitSystem === 'imperial' 
+    ? (level * 0.0328084).toFixed(2) 
+    : (level / 100).toFixed(2);
+    
   const unitLabel = unitSystem === 'imperial' ? 'feet' : 'meters';
+
+  // Make the water visually rise! (Assuming 200cm is a critical high flood mark)
+  const fillPercentage = Math.min(Math.max((level / 200) * 100, 10), 100); 
 
   return (
     <View style={styles.waterCard}>
       <Text style={styles.waterLabel}>WATER LEVEL</Text>
       <View style={styles.waterVisual}>
-        <LinearGradient colors={['#2EC4B6', '#1A8FA6']} style={styles.waterFill} />
+        {/* The height of this gradient is now dynamic based on the sensor */}
+        <LinearGradient 
+          colors={['#2EC4B6', '#1A8FA6']} 
+          style={[styles.waterFill, { height: `${fillPercentage}%` }]} 
+        />
         <Text style={styles.waterValue}>{displayLevel}</Text>
         <Text style={styles.waterUnit}>{unitLabel}</Text>
       </View>
       <TouchableOpacity style={styles.trendBadge}>
-        <Feather name="trending-up" size={12} color={Colors.textWhite} />
-        <Text style={styles.trendText}> Rising</Text>
+        <Feather name="activity" size={12} color={Colors.textWhite} />
+        <Text style={styles.trendText}> Live Data</Text>
       </TouchableOpacity>
-    </View>
-  );
-}
-
-function WeatherStat({ icon, label, value, sub }: {
-  icon: React.ComponentProps<typeof Feather>['name'];
-  label: string; value: string; sub: string;
-}) {
-  return (
-    <View style={styles.statCard}>
-      <View style={styles.statHeader}>
-        <Feather name={icon} size={14} color={Colors.textLight} />
-        <Text style={styles.statLabel}>{label}</Text>
-      </View>
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statSub}>{sub}</Text>
     </View>
   );
 }
@@ -151,6 +148,70 @@ export default function HomeScreen() {
   const [activeLayer, setActiveLayer] = useState<LayerKey>('street');
   const [pickerVisible, setPickerVisible] = useState(false);
 
+  // --- 1. STATE ---
+  const [liveWaterLevel, setLiveWaterLevel] = useState<number>(0);
+
+  // --- 2. FIREBASE LISTENER ---
+  useEffect(() => {
+    const sensorRef = ref(db, 'sensors/sensor_id_01');
+    
+    const unsubscribe = onValue(sensorRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data && data.current_reading !== undefined) {
+        setLiveWaterLevel(data.current_reading);
+      }
+    });
+
+    // The cleanup return MUST be the absolute last line inside the useEffect
+    return () => unsubscribe();
+  }, []); // <-- useEffect closes here!
+
+
+  // --- 3. DYNAMIC STATUS LOGIC ---
+  // Notice this is completely outside the useEffect now!
+  const getFloodStatus = (level: number) => {
+    if (level >= 190) {
+      return {
+        gradient: [Colors.redLight || '#ff7b72', Colors.red, Colors.redDark || '#8a0000'],
+        topBadgeColor: Colors.red,
+        iconName: 'alert-octagon' as const,
+        riskText: 'HIGH RISK',
+        warnLabel: 'CRITICAL WARNING',
+        warnDesc: 'Severe flood warning — Evacuate immediately',
+      };
+    } else if (level >= 150) {
+      return {
+        gradient: [Colors.orangeLight, Colors.orange, Colors.orangeDark],
+        topBadgeColor: Colors.warning || Colors.orange,
+        iconName: 'alert-triangle' as const,
+        riskText: 'MODERATE RISK',
+        warnLabel: 'FLOOD WARNING',
+        warnDesc: 'Moderate flood risk — Stay alert',
+      };
+    } else if (level >= 100) {
+      return {
+        gradient: ['#1B4F72', '#0D3B5E', '#0A2640'], 
+        topBadgeColor: Colors.teal,
+        iconName: 'info' as const,
+        riskText: 'ADVISORY',
+        warnLabel: 'WATER RISING',
+        warnDesc: 'Monitor local channels for updates',
+      };
+    } else {
+      return {
+        gradient: ['#2EC4B6', '#1A8FA6', '#0d8b80'], 
+        topBadgeColor: Colors.green,
+        iconName: 'check-circle' as const,
+        riskText: 'LOW RISK',
+        warnLabel: 'NORMAL STATUS',
+        warnDesc: 'Water levels are within safe limits',
+      };
+    }
+  };
+
+  // Now your UI can properly access the current status
+  const currentStatus = getFloodStatus(liveWaterLevel);
+
   const bg = darkMode ? '#0a1628' : Colors.bgLight;
   const cardBg = darkMode ? '#0d1f33' : Colors.bgWhite;
   const textPrimary = darkMode ? '#ffffff' : Colors.textDark;
@@ -168,47 +229,37 @@ export default function HomeScreen() {
         {/* Greeting */}
         <View style={[styles.greetRow, { backgroundColor: cardBg, borderBottomColor: borderColor }]}>
           <View>
-            <Text style={[styles.greetSub, { color: textSecondary, fontSize: Fonts.sizes.xs * fs }]}>GOOD MORNING</Text>
+            <Text style={[styles.greetSub, { color: textSecondary, fontSize: Fonts.sizes.xs * fs }]}>GOOD DAY</Text>
             <Text style={[styles.greetTitle, { color: textPrimary, fontSize: Fonts.sizes.lg * fs }]}>Stay safe, Resident 👋</Text>
           </View>
-          <View style={styles.warnBadge}>
-            <Feather name="alert-triangle" size={13} color={Colors.warning} />
-            <Text style={[styles.warnText, { fontSize: Fonts.sizes.xs * fs }]}> WARNING</Text>
+          {/* UPDATED TO currentStatus */}
+          <View style={[styles.warnBadge, { borderColor: currentStatus.topBadgeColor, backgroundColor: `${currentStatus.topBadgeColor}15` }]}>
+            <Feather name={currentStatus.iconName} size={13} color={currentStatus.topBadgeColor} />
+            <Text style={[styles.warnText, { color: currentStatus.topBadgeColor, fontSize: Fonts.sizes.xs * fs }]}> {currentStatus.riskText}</Text>
           </View>
         </View>
 
         {/* Main flood card */}
         <LinearGradient
-          colors={[Colors.orangeLight, Colors.orange, Colors.orangeDark]}
+          colors={currentStatus.gradient as [string, string, string]}
           style={styles.floodCard}
           start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
         >
           <View style={styles.floodCardHeader}>
             <View style={styles.floodAlertIcon}>
-              <Feather name="alert-triangle" size={20} color={Colors.orange} />
+              <Feather name={currentStatus.iconName} size={20} color={currentStatus.gradient[1]} />
             </View>
             <View style={{ flex: 1, marginLeft: Spacing.sm }}>
-              <Text style={[styles.floodWarningLabel, { fontSize: Fonts.sizes.xs * fs }]}>FLOOD WARNING</Text>
-              <Text style={[styles.floodWarningDesc, { fontSize: Fonts.sizes.sm * fs }]}>Moderate flood risk — Stay alert</Text>
+              <Text style={[styles.floodWarningLabel, { fontSize: Fonts.sizes.xs * fs }]}>{currentStatus.warnLabel}</Text>
+              <Text style={[styles.floodWarningDesc, { fontSize: Fonts.sizes.sm * fs }]}>{currentStatus.warnDesc}</Text>
             </View>
             <View style={styles.riskBadge}>
-              <Text style={[styles.riskText, { fontSize: 10 * fs }]}>MODERATE RISK</Text>
+              <Text style={[styles.riskText, { fontSize: 10 * fs }]}>{currentStatus.riskText}</Text>
             </View>
           </View>
 
           <View style={styles.statsRow}>
-            <WaterLevelWidget unitSystem={unitSystem} />
-            <View style={styles.statsCol}>
-              <WeatherStat icon="cloud-rain" label="RAINFALL" value={floodData.rainfall} sub={floodData.rainfallSub} />
-              <WeatherStat icon="thermometer" label="TEMP" value={`${floodData.temperature}°C`} sub={`feels like ${floodData.feelsLike}°`} />
-              <WeatherStat icon="wind" label="WIND" value={`${floodData.windSpeed} km/h`} sub={floodData.windDirection} />
-            </View>
-          </View>
-
-          <View style={styles.liveFooter}>
-            <View style={styles.liveDot} />
-            <Text style={[styles.liveText, { fontSize: Fonts.sizes.xs * fs }]}>Live monitoring active</Text>
-            <Text style={[styles.liveTime, { fontSize: Fonts.sizes.xs * fs }]}>{floodData.lastUpdated}</Text>
+            <WaterLevelWidget unitSystem={unitSystem} level={liveWaterLevel} />
           </View>
         </LinearGradient>
 
