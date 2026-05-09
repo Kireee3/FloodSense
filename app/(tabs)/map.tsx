@@ -58,7 +58,7 @@ const MAP_LAYERS: MapLayer[] = [
     label: 'Terrain',
     icon: 'triangle',
     description: 'Elevation & contours',
-    tileUrl: 'https://tiles.stadiamaps.com/tiles/stamen_terrain/{z}/{x}/{y}.png',
+    tileUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
   },
   {
     key: 'cycle',
@@ -268,7 +268,7 @@ export default function MapScreen() {
   );
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: bg }]} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: bg }]} edges={[]}>
       <AppHeader />
       <ScrollView
         style={styles.scroll}

@@ -1,39 +1,36 @@
-import React from 'react';
-import { useEffect } from 'react';
-import { Stack, useRouter, useSegments } from 'expo-router';
+import React, { useEffect } from 'react';
+import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { AuthProvider, useAuth } from '../context/AuthContext';
+import { ThemeProvider, useTheme } from '../constants/ThemeContext';
+import { View } from 'react-native';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '../constants/firebase';
 
-function RootLayoutNav() {
-  const { user, loading } = useAuth();
-  const segments = useSegments();
-  const router = useRouter();
+function AppContent() {
+  const { darkMode } = useTheme();
 
   useEffect(() => {
-    if (loading) return;
-    const inAuthGroup = segments[0] === '(auth)';
-    if (!user && !inAuthGroup) {
-      router.replace('/(auth)/splash');
-    } else if (user && inAuthGroup) {
-      router.replace('/(tabs)');
-    }
-  }, [user, loading, segments]);
+    const unsub = onAuthStateChanged(auth, (user) => {
+      if (!user) router.replace('/(auth)');
+    });
+    return unsub;
+  }, []);
 
   return (
-    <>
-      <StatusBar style="light" />
+    <View style={{ flex: 1, backgroundColor: darkMode ? '#0a1628' : '#fff' }}>
+      <StatusBar style={darkMode ? 'light' : 'light'} />
       <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       </Stack>
-    </>
+    </View>
   );
 }
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <RootLayoutNav />
-    </AuthProvider>
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
   );
 }
+

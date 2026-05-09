@@ -256,8 +256,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.base,
-    paddingTop: 52,
-    paddingBottom: Spacing.md,
+    paddingTop: 50,
+    paddingBottom: Spacing.sm,
   },
   logoRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   logoBox: {
