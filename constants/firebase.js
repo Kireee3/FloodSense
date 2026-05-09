@@ -1,8 +1,8 @@
 import { initializeApp } from "firebase/app";
-// Swap getAuth for initializeAuth so we can pass the persistence setting
 import { initializeAuth, getReactNativePersistence } from "firebase/auth";
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 import { getDatabase } from 'firebase/database'; // Added for sensors!
+import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
@@ -23,3 +23,4 @@ export const auth = initializeAuth(app, {
 
 // Initialize and export the Realtime Database for your sensor widget
 export const db = getDatabase(app);
+export const firestore = getFirestore(app);

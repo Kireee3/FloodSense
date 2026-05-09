@@ -1,18 +1,22 @@
-import React, { useState, useEffect } from 'react'; // Added useEffect
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Modal } from 'react-native';
+import * as Location from 'expo-location';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Modal, Alert } from 'react-native';
 import MapView, { Marker, Polyline, Circle, UrlTile, PROVIDER_DEFAULT } from 'react-native-maps';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AppHeader from '../../components/AppHeader';
 import { Colors, Spacing, Radius, Fonts } from '../../constants/theme';
-import { floodData, alerts } from '../../constants/data';
+import { alerts } from '../../constants/data';
 import { useTheme } from '../../constants/ThemeContext';
 
-// --- NEW IMPORTS FOR FIREBASE ---
+// --- FIREBASE ---
 import { ref, onValue } from 'firebase/database';
 import { db } from '../../constants/firebase';
 
+// ---------------------------------------------------------------------------
+// Types & Map Layers
+// ---------------------------------------------------------------------------
 type LayerKey = 'street' | 'satellite' | 'terrain' | 'cycle' | 'transport';
 
 interface MapLayer {
@@ -27,82 +31,73 @@ interface MapLayer {
 
 const MAP_LAYERS: MapLayer[] = [
   {
-    key: 'street',
-    label: 'Street',
-    icon: 'map',
-    description: 'Standard street map',
+    key: 'street', label: 'Street', icon: 'map', description: 'Standard street map',
     tileUrl: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
   },
   {
-    key: 'satellite',
-    label: 'Satellite',
-    icon: 'globe',
-    description: 'Aerial/satellite imagery',
-    tileUrl: '',
-    nativeSatellite: true,
+    key: 'satellite', label: 'Satellite', icon: 'globe', description: 'Aerial/satellite imagery',
+    tileUrl: '', nativeSatellite: true,
   },
   {
-   key: 'terrain',
-    label: 'Terrain',
-    icon: 'triangle',
-    description: 'Elevation & contours',
+    key: 'terrain', label: 'Terrain', icon: 'triangle', description: 'Elevation & contours',
     tileUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
-},
+  },
   {
-    key: 'cycle',
-    label: 'Cycle',
-    icon: 'wind',
-    description: 'Cycling routes',
+    key: 'cycle', label: 'Cycle', icon: 'wind', description: 'Cycling routes',
     baseUrl: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
     tileUrl: 'https://tile.waymarkedtrails.org/cycling/{z}/{x}/{y}.png',
   },
   {
-    key: 'transport',
-    label: 'Transport',
-    icon: 'truck',
-    description: 'Transit & transport network',
+    key: 'transport', label: 'Transport', icon: 'truck', description: 'Transit & transport network',
     tileUrl: 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png',
   },
 ];
 
-const YOUR_LOCATION = { latitude: 14.5995, longitude: 120.9842 };
+// ---------------------------------------------------------------------------
+// Dynamic GPS Coordinates & Routing
+// ---------------------------------------------------------------------------
 const FLOOD_LOCATION = { latitude: 14.5965, longitude: 120.9820 };
-const SAFE_LOCATION = { latitude: 14.6025, longitude: 120.9875 };
 
-const ROUTE_COORDS = [
-  YOUR_LOCATION,
-  { latitude: 14.6005, longitude: 120.9855 },
-  SAFE_LOCATION,
+interface EvacArea {
+  name: string;
+  coordinate: { latitude: number; longitude: number; };
+}
+
+const EVAC_AREAS: EvacArea[] = [
+  { name: 'SM City Manila', coordinate: { latitude: 14.589856887783418, longitude: 120.98314042065157 } },
+  { name: 'PNU Gymnasium', coordinate: { latitude: 14.58836845294668, longitude: 120.98263528399174 } },
+  { name: 'YMCA of Manila', coordinate: { latitude: 14.588845283492326, longitude: 120.98254227148138 } },
+  { name: 'Maceda Building', coordinate: { latitude: 14.587614491989854, longitude: 120.9827890805987 } },
 ];
 
 const INITIAL_REGION = {
-  latitude: 14.5995,
-  longitude: 120.9850,
-  latitudeDelta: 0.012,
-  longitudeDelta: 0.010,
+  latitude: 14.5995, longitude: 120.9850,
+  latitudeDelta: 0.012, longitudeDelta: 0.010,
 };
 
-function WaterLevelWidget({ unitSystem, level }: { unitSystem: string; level: number }) {
-  // Assuming the sensor sends raw centimeters (e.g., 151)
-  // Convert to meters (1.51) or feet (4.95)
-  const displayLevel = unitSystem === 'imperial' 
-    ? (level * 0.0328084).toFixed(2) 
-    : (level / 100).toFixed(2);
-    
-  const unitLabel = unitSystem === 'imperial' ? 'feet' : 'meters';
+const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+  const R = 6371; 
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+};
 
-  // Make the water visually rise! (Assuming 200cm is a critical high flood mark)
+// ---------------------------------------------------------------------------
+// Widgets
+// ---------------------------------------------------------------------------
+function WaterLevelWidget({ unitSystem, level }: { unitSystem: string; level: number }) {
+  const displayLevel = unitSystem === 'imperial' ? (level * 0.0328084).toFixed(2) : (level / 100).toFixed(2);
+  const unitLabel = unitSystem === 'imperial' ? 'feet' : 'meters';
   const fillPercentage = Math.min(Math.max((level / 200) * 100, 10), 100); 
 
   return (
     <View style={styles.waterCard}>
       <Text style={styles.waterLabel}>WATER LEVEL</Text>
       <View style={styles.waterVisual}>
-        {/* The height of this gradient is now dynamic based on the sensor */}
-        <LinearGradient 
-          colors={['#2EC4B6', '#1A8FA6']} 
-          style={[styles.waterFill, { height: `${fillPercentage}%` }]} 
-        />
+        <LinearGradient colors={['#2EC4B6', '#1A8FA6']} style={[styles.waterFill, { height: `${fillPercentage}%` }]} />
         <Text style={styles.waterValue}>{displayLevel}</Text>
         <Text style={styles.waterUnit}>{unitLabel}</Text>
       </View>
@@ -115,8 +110,7 @@ function WaterLevelWidget({ unitSystem, level }: { unitSystem: string; level: nu
 }
 
 function AlertItem({ alert, cardBg, textPrimary, textSecondary }: {
-  alert: (typeof alerts)[0];
-  cardBg: string; textPrimary: string; textSecondary: string;
+  alert: (typeof alerts)[0]; cardBg: string; textPrimary: string; textSecondary: string;
 }) {
   const colorMap = { warning: Colors.orange, info: Colors.teal, safe: Colors.green, notice: Colors.navyLight };
   const iconMap: Record<string, React.ComponentProps<typeof Feather>['name']> = {
@@ -142,75 +136,127 @@ function AlertItem({ alert, cardBg, textPrimary, textSecondary }: {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Main Screen
+// ---------------------------------------------------------------------------
 export default function HomeScreen() {
   const { darkMode, fontSize, unitSystem } = useTheme();
   const [mapRegion, setMapRegion] = useState(INITIAL_REGION);
   const [activeLayer, setActiveLayer] = useState<LayerKey>('street');
   const [pickerVisible, setPickerVisible] = useState(false);
 
-  // --- 1. STATE ---
+  // --- SENSOR STATE ---
   const [liveWaterLevel, setLiveWaterLevel] = useState<number>(0);
 
-  // --- 2. FIREBASE LISTENER ---
+  // --- LOCATION STATE ---
+  const mapRef = useRef<MapView>(null);
+  const [userLocation, setUserLocation] = useState<any>(null);
+  const [activeRoute, setActiveRoute] = useState<{coords: any[], distance: number, time: number, name: string} | null>(null);
+
+  // 1. Firebase Listener
   useEffect(() => {
     const sensorRef = ref(db, 'sensors/sensor_id_01');
-    
     const unsubscribe = onValue(sensorRef, (snapshot) => {
       const data = snapshot.val();
       if (data && data.current_reading !== undefined) {
         setLiveWaterLevel(data.current_reading);
       }
     });
-
-    // The cleanup return MUST be the absolute last line inside the useEffect
     return () => unsubscribe();
-  }, []); // <-- useEffect closes here!
+  }, []);
 
+  // 2. GPS Listener
+  useEffect(() => {
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return;
+      const location = await Location.getCurrentPositionAsync({});
+      setUserLocation({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      });
+    })();
+  }, []);
 
-  // --- 3. DYNAMIC STATUS LOGIC ---
-  // Notice this is completely outside the useEffect now!
+  // 3. Navigation Logic
+  const handleNavigate = () => {
+    if (!userLocation) {
+      Alert.alert("Locating...", "Still waiting for your GPS location. Make sure location services are on.");
+      return;
+    }
+
+    let minDistance = Infinity;
+    let nearestArea: EvacArea | null = null;
+
+    EVAC_AREAS.forEach(area => {
+      const dist = getDistance(
+        userLocation.latitude, userLocation.longitude,
+        area.coordinate.latitude, area.coordinate.longitude
+      );
+      if (dist < minDistance) {
+        minDistance = dist;
+        nearestArea = area;
+      }
+    });
+
+    if (nearestArea) {
+      const timeInMins = Math.max(1, Math.ceil(minDistance * 12)); 
+      
+      setActiveRoute({
+        coords: [userLocation, nearestArea.coordinate],
+        distance: minDistance,
+        time: timeInMins,
+        name: nearestArea.name
+      });
+
+      if (mapRef.current) {
+        mapRef.current.fitToCoordinates([userLocation, nearestArea.coordinate], {
+          edgePadding: { top: 60, right: 60, bottom: 60, left: 60 },
+          animated: true,
+        });
+      }
+    }
+  };
+
   const getFloodStatus = (level: number) => {
     if (level >= 190) {
       return {
         gradient: [Colors.redLight || '#ff7b72', Colors.red, Colors.redDark || '#8a0000'],
-        topBadgeColor: Colors.red,
-        iconName: 'alert-octagon' as const,
-        riskText: 'HIGH RISK',
-        warnLabel: 'CRITICAL WARNING',
-        warnDesc: 'Severe flood warning — Evacuate immediately',
+        topBadgeColor: Colors.red, iconName: 'alert-octagon' as const,
+        riskText: 'HIGH RISK', warnLabel: 'CRITICAL WARNING', warnDesc: 'Severe flood warning — Evacuate immediately',
       };
     } else if (level >= 150) {
       return {
         gradient: [Colors.orangeLight, Colors.orange, Colors.orangeDark],
-        topBadgeColor: Colors.warning || Colors.orange,
-        iconName: 'alert-triangle' as const,
-        riskText: 'MODERATE RISK',
-        warnLabel: 'FLOOD WARNING',
-        warnDesc: 'Moderate flood risk — Stay alert',
+        topBadgeColor: Colors.warning || Colors.orange, iconName: 'alert-triangle' as const,
+        riskText: 'MODERATE RISK', warnLabel: 'FLOOD WARNING', warnDesc: 'Moderate flood risk — Stay alert',
       };
     } else if (level >= 100) {
       return {
         gradient: ['#1B4F72', '#0D3B5E', '#0A2640'], 
-        topBadgeColor: Colors.teal,
-        iconName: 'info' as const,
-        riskText: 'ADVISORY',
-        warnLabel: 'WATER RISING',
-        warnDesc: 'Monitor local channels for updates',
+        topBadgeColor: Colors.teal, iconName: 'info' as const,
+        riskText: 'ADVISORY', warnLabel: 'WATER RISING', warnDesc: 'Monitor local channels for updates',
       };
     } else {
       return {
         gradient: ['#2EC4B6', '#1A8FA6', '#0d8b80'], 
-        topBadgeColor: Colors.green,
-        iconName: 'check-circle' as const,
-        riskText: 'LOW RISK',
-        warnLabel: 'NORMAL STATUS',
-        warnDesc: 'Water levels are within safe limits',
+        topBadgeColor: Colors.green, iconName: 'check-circle' as const,
+        riskText: 'LOW RISK', warnLabel: 'NORMAL STATUS', warnDesc: 'Water levels are within safe limits',
       };
     }
   };
 
-  // Now your UI can properly access the current status
   const currentStatus = getFloodStatus(liveWaterLevel);
+  const currentLayer = MAP_LAYERS.find((layer) => layer.key === activeLayer)!;
+
+  const displayDistance = activeRoute
+    ? (unitSystem === 'imperial'
+        ? (activeRoute.distance * 0.621371).toFixed(2) + ' mi'
+        : (activeRoute.distance < 1 
+            ? Math.round(activeRoute.distance * 1000) + ' m' 
+            : activeRoute.distance.toFixed(2) + ' km'))
+    : '--';
+  const displayTime = activeRoute ? `Est. ${activeRoute.time} mins walk` : 'Standby';
 
   const bg = darkMode ? '#0a1628' : Colors.bgLight;
   const cardBg = darkMode ? '#0d1f33' : Colors.bgWhite;
@@ -218,28 +264,23 @@ export default function HomeScreen() {
   const textSecondary = darkMode ? '#aaaaaa' : Colors.textGray;
   const borderColor = darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
   const fs = fontSize === 'small' ? 0.85 : fontSize === 'large' ? 1.2 : 1;
-  const distance = unitSystem === 'imperial' ? '0.9 mi' : '1.5 km';
-  const currentLayer = MAP_LAYERS.find((layer) => layer.key === activeLayer)!;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: bg }]} edges={[]}>
       <AppHeader />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
-        {/* Greeting */}
         <View style={[styles.greetRow, { backgroundColor: cardBg, borderBottomColor: borderColor }]}>
           <View>
             <Text style={[styles.greetSub, { color: textSecondary, fontSize: Fonts.sizes.xs * fs }]}>GOOD DAY</Text>
             <Text style={[styles.greetTitle, { color: textPrimary, fontSize: Fonts.sizes.lg * fs }]}>Stay safe, Resident 👋</Text>
           </View>
-          {/* UPDATED TO currentStatus */}
           <View style={[styles.warnBadge, { borderColor: currentStatus.topBadgeColor, backgroundColor: `${currentStatus.topBadgeColor}15` }]}>
             <Feather name={currentStatus.iconName} size={13} color={currentStatus.topBadgeColor} />
             <Text style={[styles.warnText, { color: currentStatus.topBadgeColor, fontSize: Fonts.sizes.xs * fs }]}> {currentStatus.riskText}</Text>
           </View>
         </View>
 
-        {/* Main flood card */}
         <LinearGradient
           colors={currentStatus.gradient as [string, string, string]}
           style={styles.floodCard}
@@ -263,7 +304,6 @@ export default function HomeScreen() {
           </View>
         </LinearGradient>
 
-        {/* Evacuation map section */}
         <View style={[styles.mapSection, { backgroundColor: cardBg }]}>
           <View style={styles.mapSectionHeader}>
             <Text style={[styles.sectionTitle, { color: textPrimary, fontSize: Fonts.sizes.md * fs }]}>Evacuation Map</Text>
@@ -282,6 +322,7 @@ export default function HomeScreen() {
 
           <View style={styles.mockMap}>
             <MapView
+              ref={mapRef}
               style={StyleSheet.absoluteFillObject}
               provider={PROVIDER_DEFAULT}
               initialRegion={mapRegion}
@@ -298,51 +339,43 @@ export default function HomeScreen() {
               pitchEnabled={false}
             >
               {!currentLayer.nativeSatellite && currentLayer.baseUrl && (
-                <UrlTile
-                  urlTemplate={currentLayer.baseUrl}
-                  maximumZ={19}
-                  flipY={false}
-                  tileSize={256}
-                  zIndex={0}
-                />
+                <UrlTile urlTemplate={currentLayer.baseUrl} maximumZ={19} flipY={false} tileSize={256} zIndex={0} />
               )}
 
               {!currentLayer.nativeSatellite && currentLayer.tileUrl !== '' && (
-                <UrlTile
-                  urlTemplate={currentLayer.tileUrl}
-                  maximumZ={19}
-                  flipY={false}
-                  tileSize={256}
-                  zIndex={currentLayer.baseUrl ? 1 : 0}
-                  opacity={currentLayer.baseUrl ? 0.8 : 1}
-                />
+                <UrlTile urlTemplate={currentLayer.tileUrl} maximumZ={19} flipY={false} tileSize={256} zIndex={currentLayer.baseUrl ? 1 : 0} opacity={currentLayer.baseUrl ? 0.8 : 1} />
               )}
 
-              <Circle
-                center={FLOOD_LOCATION}
-                radius={130}
-                strokeColor="rgba(231,76,60,0.8)"
-                fillColor="rgba(231,76,60,0.18)"
-                strokeWidth={2}
-              />
+              <Circle center={FLOOD_LOCATION} radius={130} strokeColor="rgba(231,76,60,0.8)" fillColor="rgba(231,76,60,0.18)" strokeWidth={2} />
 
-              <Polyline
-                coordinates={ROUTE_COORDS}
-                strokeColor={Colors.teal}
-                strokeWidth={4}
-                lineDashPattern={[10, 6]}
-              />
+              {/* Dynamic Evacuation Route */}
+              {activeRoute && (
+                <Polyline coordinates={activeRoute.coords} strokeColor={Colors.teal} strokeWidth={4} lineDashPattern={[10, 6]} />
+              )}
 
-              <Marker coordinate={YOUR_LOCATION} anchor={{ x: 0.5, y: 1 }} tracksViewChanges={false}>
-                <View style={styles.markerWrap}>
-                  <View style={styles.markerTeal}>
-                    <Feather name="map-pin" size={16} color="#fff" />
+              {/* Evac Areas */}
+              {EVAC_AREAS.map((area) => (
+                <Marker key={area.name} coordinate={area.coordinate} anchor={{ x: 0.5, y: 1 }}>
+                  <View style={styles.markerWrap}>
+                    <View style={styles.markerOrange}>
+                      <Feather name="home" size={10} color="#fff" />
+                    </View>
                   </View>
-                  <View style={[styles.markerLabel, { backgroundColor: '#0d8b80' }]}>
-                    <Text style={styles.markerLabelText}>YOU</Text>
+                </Marker>
+              ))}
+
+              {userLocation && (
+                <Marker coordinate={userLocation} anchor={{ x: 0.5, y: 1 }} tracksViewChanges={false}>
+                  <View style={styles.markerWrap}>
+                    <View style={styles.markerTeal}>
+                      <Feather name="map-pin" size={16} color="#fff" />
+                    </View>
+                    <View style={[styles.markerLabel, { backgroundColor: '#0d8b80' }]}>
+                      <Text style={styles.markerLabelText}>YOU</Text>
+                    </View>
                   </View>
-                </View>
-              </Marker>
+                </Marker>
+              )}
 
               <Marker coordinate={FLOOD_LOCATION} anchor={{ x: 0.5, y: 1 }} tracksViewChanges={false}>
                 <View style={styles.markerWrap}>
@@ -354,83 +387,50 @@ export default function HomeScreen() {
                   </View>
                 </View>
               </Marker>
-
-              <Marker coordinate={SAFE_LOCATION} anchor={{ x: 0.5, y: 1 }} tracksViewChanges={false}>
-                <View style={styles.markerWrap}>
-                  <View style={styles.markerGreen}>
-                    <Feather name="check" size={14} color="#fff" />
-                  </View>
-                  <View style={[styles.markerLabel, { backgroundColor: Colors.greenDark }]}>
-                    <Text style={styles.markerLabelText}>SAFE ZONE</Text>
-                  </View>
-                </View>
-              </Marker>
             </MapView>
 
             <View style={styles.distanceCard}>
               <Text style={styles.distanceLabel}>DISTANCE</Text>
-              <Text style={styles.distanceValue}>{distance}</Text>
-              <Text style={styles.distanceSub}>Est. 12 mins walk</Text>
+              <Text style={styles.distanceValue}>{displayDistance}</Text>
+              <Text style={styles.distanceSub}>{displayTime}</Text>
             </View>
 
             <View style={styles.locationLabel}>
-              <Text style={styles.locationLabelText}>Brgy 659 - Manila</Text>
+              <Text style={styles.locationLabelText}>{activeRoute ? 'To ' + activeRoute.name : 'Brgy 659 - Manila'}</Text>
             </View>
           </View>
 
           <LinearGradient colors={[Colors.navyMid, Colors.teal]} style={styles.navigateBtn} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-            <TouchableOpacity style={styles.navigateBtnInner}>
+            <TouchableOpacity style={styles.navigateBtnInner} onPress={handleNavigate}>
               <Feather name="navigation" size={18} color={Colors.textWhite} />
-              <Text style={[styles.navigateBtnText, { fontSize: Fonts.sizes.base * fs }]}>Navigate to Safe Zone</Text>
+              <Text style={[styles.navigateBtnText, { fontSize: Fonts.sizes.base * fs }]}>Navigate to Nearest Evacuation Area</Text>
             </TouchableOpacity>
           </LinearGradient>
         </View>
 
-        <Modal
-          visible={pickerVisible}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setPickerVisible(false)}
-        >
+        <Modal visible={pickerVisible} transparent animationType="slide" onRequestClose={() => setPickerVisible(false)}>
           <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setPickerVisible(false)}>
             <View style={[styles.layerPicker, { backgroundColor: cardBg }]}>
               <View style={styles.pickerHandle} />
               <Text style={[styles.pickerTitle, { color: textPrimary }]}>Map Style</Text>
-
               {MAP_LAYERS.map((layer, i) => {
                 const isActive = activeLayer === layer.key;
                 return (
                   <TouchableOpacity
                     key={layer.key}
-                    style={[
-                      styles.pickerItem,
-                      { borderBottomColor: borderColor },
-                      i === MAP_LAYERS.length - 1 && { borderBottomWidth: 0 },
-                    ]}
-                    onPress={() => {
-                      setActiveLayer(layer.key);
-                      setPickerVisible(false);
-                    }}
+                    style={[styles.pickerItem, { borderBottomColor: borderColor }, i === MAP_LAYERS.length - 1 && { borderBottomWidth: 0 }]}
+                    onPress={() => { setActiveLayer(layer.key); setPickerVisible(false); }}
                     activeOpacity={0.75}
                   >
-                    <View
-                      style={[
-                        styles.pickerIconWrap,
-                        { backgroundColor: isActive ? Colors.teal : 'rgba(46,196,182,0.12)' },
-                      ]}
-                    >
+                    <View style={[styles.pickerIconWrap, { backgroundColor: isActive ? Colors.teal : 'rgba(46,196,182,0.12)' }]}>
                       <Feather name={layer.icon} size={16} color={isActive ? '#fff' : Colors.teal} />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={[styles.pickerLabel, { color: isActive ? Colors.teal : textPrimary }]}>
-                        {layer.label}
-                      </Text>
+                      <Text style={[styles.pickerLabel, { color: isActive ? Colors.teal : textPrimary }]}>{layer.label}</Text>
                       <Text style={[styles.pickerDesc, { color: textSecondary }]}>{layer.description}</Text>
                     </View>
                     {isActive && (
-                      <View style={styles.pickerCheck}>
-                        <Feather name="check" size={13} color={Colors.teal} />
-                      </View>
+                      <View style={styles.pickerCheck}><Feather name="check" size={13} color={Colors.teal} /></View>
                     )}
                   </TouchableOpacity>
                 );
@@ -439,7 +439,6 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </Modal>
 
-        {/* Recent Alerts */}
         <View style={styles.alertsSection}>
           <View style={styles.alertsSectionHeader}>
             <Text style={[styles.sectionTitle, { color: textPrimary, fontSize: Fonts.sizes.md * fs }]}>Recent Alerts</Text>
@@ -504,6 +503,7 @@ const styles = StyleSheet.create({
   markerTeal: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.teal, alignItems: 'center', justifyContent: 'center', borderWidth: 2.5, borderColor: 'rgba(255,255,255,0.6)' },
   markerRed: { width: 30, height: 30, borderRadius: 15, backgroundColor: Colors.red, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'rgba(255,255,255,0.5)' },
   markerGreen: { width: 30, height: 30, borderRadius: 15, backgroundColor: Colors.green, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'rgba(255,255,255,0.5)' },
+  markerOrange: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#f39c12', alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.6)', },
   markerLabel: { marginTop: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   markerLabelText: { fontSize: 8, color: '#fff', fontWeight: '800', letterSpacing: 0.5 },
   distanceCard: { position: 'absolute', top: 10, right: 10, backgroundColor: 'rgba(13,59,94,0.92)', borderRadius: Radius.md, padding: 10, borderWidth: 1, borderColor: 'rgba(46,196,182,0.3)' },

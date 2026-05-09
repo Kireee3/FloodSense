@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  Modal, ScrollView, Switch,
+  Modal, ScrollView, Switch, Alert,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Spacing, Fonts } from '../constants/theme';
 import { useTheme } from '../constants/ThemeContext';
+import { signOut } from 'firebase/auth';
+import { auth } from '../constants/firebase';
 
 type AppHeaderProps = {
   showBadge?: boolean;
@@ -28,6 +30,27 @@ export default function AppHeader({ showBadge = true }: AppHeaderProps) {
   const sectionColor = darkMode ? '#667' : '#999';
 
   const fontSizeScale = fontSize === 'small' ? 0.85 : fontSize === 'large' ? 1.2 : 1;
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      setSettingsVisible(false); // Close the sheet as they log out
+    } catch (error) {
+      console.error('Error signing out: ', error);
+      Alert.alert('Error', 'Failed to log out. Please try again.');
+    }
+  };
+
+  const confirmLogout = () => {
+    Alert.alert(
+      "Log Out",
+      "Are you sure you want to log out of FloodSense?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Log Out", style: "destructive", onPress: handleLogout }
+      ]
+    );
+  };
 
   const notifications = [
     { id: '1', icon: 'alert-triangle', color: Colors.orange, title: 'Water Level Rising', desc: 'Level reached 1.8m in Barangay 659', time: '2 mins ago' },
@@ -242,6 +265,19 @@ export default function AppHeader({ showBadge = true }: AppHeaderProps) {
                 <Text style={[styles.settingValue, { color: subtitleColor }]}>659</Text>
               </View>
 
+              {/* ── ADD ACCOUNT / LOGOUT HERE ── */}
+              <Text style={[styles.sectionLabel, { color: sectionColor, marginTop: Spacing.lg }]}>ACCOUNT</Text>
+              <TouchableOpacity 
+                style={styles.logoutBtn} 
+                onPress={confirmLogout}
+                activeOpacity={0.7}
+              >
+                <Feather name="log-out" size={18} color="#e74c3c" />
+                <Text style={[styles.settingText, { color: '#e74c3c', fontSize: Fonts.sizes.sm * fontSizeScale, fontWeight: '700' }]}>
+                  Log Out
+                </Text>
+              </TouchableOpacity>
+              {/* ─────────────────────────────── */}
             </ScrollView>
           </View>
         </View>
@@ -307,4 +343,13 @@ const styles = StyleSheet.create({
   fontSizeBtnActive: { backgroundColor: Colors.teal, borderColor: Colors.teal },
   fontSizeBtnText: { fontSize: 13, color: '#666', fontWeight: '600' },
   fontSizeBtnTextActive: { color: '#fff' },
+
+  logoutBtn: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: Spacing.sm, 
+    paddingVertical: 14, 
+    paddingHorizontal: 4, // Aligns nicely with the text above
+    marginBottom: Spacing.xl // Gives a little breathing room at the bottom of the scroll
+  },
 });
