@@ -1,6 +1,7 @@
 # 🌊 FloodSense
 
-A flood monitoring and emergency response mobile app built with **Expo + React Native + TypeScript**.
+A community-based flood monitoring, emergency response, and evacuation routing mobile app built specifically for **Barangay 659, Manila**.
+Built with **Expo + React Native + TypeScript** and powered by **Firebase** for real-time IoT sensor data and authentication.
 
 ---
 
@@ -8,10 +9,11 @@ A flood monitoring and emergency response mobile app built with **Expo + React N
 
 | Screen | Description |
 |--------|-------------|
-| **Home** | Live flood data, water level widget, weather stats, evacuation map preview, recent alerts |
-| **Map** | Full evacuation routes map with distance/ETA, safe zone navigation |
-| **Guide** | Safety guidelines — Before, During, After a Flood |
-| **Emergency** | SOS 911 button + quick-dial emergency contacts |
+| **Auth** | Login, Registration, Email Verification, and Mobile Number setup flow. |
+| **Home** | Live flood water level widget, real-time threshold popups, map preview, and a dynamic recent alerts feed. |
+| **Map** | Interactive evacuation map with live user tracking (expo-location), custom markers, and polyline routing to safe zones. |
+| **Guide** | Expandable safety guidelines — Before, During, and After a Flood. |
+| **Emergency** | SOS 911 one-tap dialer + quick-dial local emergency contacts. |
 
 ---
 
@@ -36,51 +38,14 @@ npx expo start
 
 ---
 
-## 🗂️ Project Structure
-
-```
-FloodSense/
-├── app/
-│   ├── _layout.tsx              # Root layout (Stack navigator)
-│   └── (tabs)/
-│       ├── _layout.tsx          # Tab bar layout
-│       ├── index.tsx            # 🏠 Home screen
-│       ├── map.tsx              # 🗺️  Map screen
-│       ├── guide.tsx            # 📖 Guide screen
-│       └── emergency.tsx        # 📞 Emergency screen
-├── components/
-│   └── AppHeader.tsx            # Shared top header
-├── constants/
-│   ├── theme.ts                 # Colors, fonts, spacing, radius
-│   └── data.ts                  # Mock data (flood, alerts, contacts)
-├── app.json                     # Expo config
-├── babel.config.js
-├── tsconfig.json
-└── package.json
-```
-
----
-
-## 🎨 Design System
-
-| Token | Value |
-|-------|-------|
-| Primary Navy | `#0D3B5E` |
-| Teal Accent | `#2EC4B6` |
-| Warning Orange | `#FF6B35` |
-| Emergency Red | `#C0392B` |
-| Safe Green | `#27AE60` |
-
----
-
 ## 🔧 Next Steps / Integrations
 
-- [ ] **Real sensor API** — Replace mock `floodData` in `constants/data.ts` with a live API call
-- [ ] **expo-maps / react-native-maps** — Replace mock map with real MapView
+- [x] **Real sensor API** — Replace mock `floodData` in `constants/data.ts` with a live API call
+- [x] **expo-maps / react-native-maps** — Replace mock map with real MapView
 - [ ] **Push notifications** — Use `expo-notifications` for flood alerts
-- [ ] **Geolocation** — Use `expo-location` for real user position
+- [x] **Geolocation** — Use `expo-location` for real user position
 - [ ] **AsyncStorage** — Persist alerts and user preferences
-- [ ] **Auth** — Add barangay resident login
+- [x] **Auth** — Add barangay resident login
 
 ---
 
